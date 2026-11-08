@@ -1,0 +1,80 @@
+name: Extract uploaded ZIP archives
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - 'recreate-pixel-perfect-website(5).zip'
+      - 'recreate-pixel-perfect-website(6).zip'
+      - '.github/workflows/extract-zips.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Extract each archive into its own folder
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path, PurePosixPath
+          from zipfile import ZipFile
+          import shutil
+
+          archives = [
+              (Path("recreate-pixel-perfect-website(5).zip"), Path("extracted/website-5")),
+              (Path("recreate-pixel-perfect-website(6).zip"), Path("extracted/website-6")),
+          ]
+
+          for archive, destination in archives:
+              if not archive.is_file():
+                  raise SystemExit(f"Required archive not found: {archive}")
+
+              if destination.exists():
+                  shutil.rmtree(destination)
+              destination.mkdir(parents=True, exist_ok=True)
+
+              with ZipFile(archive) as zf:
+                  for item in zf.infolist():
+                      member = PurePosixPath(item.filename)
+
+                      if member.is_absolute() or ".." in member.parts:
+                          raise SystemExit(f"Unsafe ZIP path in {archive}: {item.filename}")
+
+                      # Reject symbolic links to prevent writing outside the destination.
+                      mode = (item.external_attr >> 16) & 0o170000
+                      if mode == 0o120000:
+                          raise SystemExit(f"Symbolic link is not allowed: {item.filename}")
+
+                      target = destination.joinpath(*member.parts)
+                      if item.is_dir():
+                          target.mkdir(parents=True, exist_ok=True)
+                          continue
+
+                      target.parent.mkdir(parents=True, exist_ok=True)
+                      with zf.open(item) as source, target.open("wb") as output:
+                          shutil.copyfileobj(source, output)
+
+              print(f"Extracted {archive} -> {destination}")
+
+          PY
+
+      - name: Commit extracted folders
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add extracted/
+          if git diff --cached --quiet; then
+            echo "No extracted-file changes to commit."
+          else
+            git commit -m "Extract uploaded website ZIP archives"
+            git push
+          fi
