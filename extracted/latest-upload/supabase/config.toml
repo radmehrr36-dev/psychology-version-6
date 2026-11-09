@@ -1,0 +1,49 @@
+# تنظیمات Supabase CLI برای اجرای محلی (نیازمند Docker)
+project_id = "ariasazeh"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "storage", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+major_version = 15
+
+[studio]
+enabled = true
+port = 54323
+
+[inbucket]
+enabled = true
+port = 54324
+
+[storage]
+enabled = true
+file_size_limit = "10MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173", "http://localhost:5173/login", "http://localhost:5173/reset-password", "http://localhost:5173/admin/login"]
+jwt_expiry = 3600
+enable_signup = false
+
+[auth.email]
+enable_signup = false
+double_confirm_changes = true
+enable_confirmations = true
+
+[edge_runtime]
+enabled = true
+
+# ── Edge Functions ────────────────────────────────────────────
+# auth-gateway: ثبت‌نام/OTP/ورود با موبایل یا نام کاربری (قبل از ورود فراخوانی می‌شود → بدون JWT؛ امنیت با rate-limit و تأیید سمت سرور)
+[functions.auth-gateway]
+verify_jwt = false
+
+# support-ai: فقط کاربر واردشده
+[functions.support-ai]
+verify_jwt = true
