@@ -49,27 +49,38 @@ export function flowError(e: unknown): string {
 /** نسخه‌ی منتشرشده‌ی یک آزمون از snapshot تغییرناپذیر */
 export async function loadPublishedVersion(testId: string): Promise<PublishedVersion | null> {
   if (!supabase) return null;
-  const { data, error } = await supabase
-    .from("test_versions")
-    .select("id,version_label,scoring_rules,snapshot,published_at")
-    .eq("test_id", testId)
-    .eq("status", "published")
-    .not("snapshot", "is", null)
-    .order("published_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error || !data) return null;
-  const snap = (data.snapshot ?? {}) as { questions?: unknown; interpretations?: unknown };
+
+  // Public test versions must be read through the sanitized RPC. Direct SELECT on
+  // test_versions is intentionally restricted to staff and would make regular
+  // users see a misleading "no published version" message.
+  const { data, error } = await supabase.rpc("public_test_version", { p_test_id: testId });
+  if (error || !data || typeof data !== "object") return null;
+
+  const payload = data as {
+    id?: string;
+    version_label?: string;
+    scoring_rules?: PublishedVersion["scoring_rules"];
+    snapshot?: { questions?: unknown; interpretations?: unknown };
+  };
+  const snap = payload.snapshot ?? {};
   const questions = (Array.isArray(snap.questions) ? snap.questions : [])
     .map((q) => q as SnapshotQuestion)
-    .map((q) => ({ ...q, options: [...(q.options ?? [])].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)) }))
+    .map((q) => ({
+      ...q,
+      options: [...(q.options ?? [])].map((option) => ({ ...option, score: option.score ?? 0 }))
+        .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0)),
+    }))
     .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+  if (!payload.id || questions.length === 0) return null;
   return {
-    id: data.id,
-    version_label: data.version_label,
-    scoring_rules: (data.scoring_rules ?? {}) as PublishedVersion["scoring_rules"],
+    id: payload.id,
+    version_label: payload.version_label ?? "",
+    scoring_rules: payload.scoring_rules ?? {},
     questions,
-    interpretations: Array.isArray(snap.interpretations) ? (snap.interpretations as PublishedVersion["interpretations"]) : [],
+    interpretations: Array.isArray(snap.interpretations)
+      ? (snap.interpretations as PublishedVersion["interpretations"])
+      : [],
   };
 }
 
