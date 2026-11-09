@@ -1,0 +1,41 @@
+name: Inspect website ZIP
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/inspect-zip.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Extract and inspect archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP_FILE="recreate-pixel-perfect-website(5).zip"
+          test -f "$ZIP_FILE"
+          mkdir -p /tmp/site-inspect
+          unzip -q "$ZIP_FILE" -d /tmp/site-inspect
+          echo "=== ARCHIVE FILE LIST (first 250) ==="
+          find /tmp/site-inspect -type f | sed 's#^/tmp/site-inspect/##' | sort | head -250
+          echo "=== FILE COUNTS ==="
+          printf 'Total files: '
+          find /tmp/site-inspect -type f | wc -l
+          printf 'HTML: '
+          find /tmp/site-inspect -type f -iname '*.html' | wc -l
+          printf 'JS/TS: '
+          find /tmp/site-inspect -type f \( -iname '*.js' -o -iname '*.jsx' -o -iname '*.ts' -o -iname '*.tsx' \) | wc -l
+          printf 'CSS: '
+          find /tmp/site-inspect -type f -iname '*.css' | wc -l
+          echo "=== PACKAGE.JSON FILES ==="
+          find /tmp/site-inspect -name package.json -type f -print -exec cat {} \;
+          echo "=== FRAMEWORK / SERVER CONFIG FILES ==="
+          find /tmp/site-inspect -type f \( -name 'vite.config.*' -o -name 'next.config.*' -o -name 'webpack.config.*' -o -name 'vercel.json' -o -name 'netlify.toml' -o -name 'wrangler.toml' -o -name '.htaccess' \) -print
+          echo "=== API / SUPABASE REFERENCES ==="
+          grep -RIlE 'supabase|createClient\(|fetch\(|axios|express\(|app\.get\(|app\.post\(' /tmp/site-inspect --exclude-dir=node_modules 2>/dev/null | sed 's#^/tmp/site-inspect/##' | head -100 || true
