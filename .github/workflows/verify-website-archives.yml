@@ -1,0 +1,46 @@
+name: Verify extracted website versions
+
+on:
+  push:
+    paths:
+      - "verify-archives.trigger"
+      - "extracted/version-5/**"
+      - "extracted/version-9/**"
+      - ".github/workflows/verify-website-archives.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-version-5:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extracted/version-5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extracted/version-5/package-lock.json
+      - run: npm ci
+      - run: npm run build
+
+  build-and-test-version-9:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extracted/version-9
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: extracted/version-9/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - name: Run improvement-flow integration tests
+        run: node tests/improvement-flow.mjs
