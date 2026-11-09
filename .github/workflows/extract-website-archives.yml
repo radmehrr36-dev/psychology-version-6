@@ -7,6 +7,10 @@ on:
       - "extract-archives.trigger"
   workflow_dispatch:
 
+concurrency:
+  group: extract-website-archives-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
 
