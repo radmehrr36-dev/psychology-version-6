@@ -1,0 +1,44 @@
+name: Extract ZIP 5
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/extract-zips.yml"
+      - ".github/workflows/extract-trigger.txt"
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract version 5 archive
+        run: |
+          set -euo pipefail
+          archive="recreate-pixel-perfect-website(5).zip"
+          target="extracted/website-5"
+          test -f "$archive"
+          mkdir -p "$target"
+          unzip -o "$archive" -d "$target"
+          echo "Extracted contents:"
+          find "$target" -maxdepth 3 -type f | head -100
+
+      - name: Commit extracted files
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add extracted/website-5
+          if git diff --cached --quiet; then
+            echo "No extracted file changes to commit."
+            exit 0
+          fi
+          git commit -m "Extract version 5 ZIP archive"
+          git push
